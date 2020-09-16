@@ -1,11 +1,15 @@
 package com.hejunlin.mediaplayersample;
 
 
+import android.content.res.AssetFileDescriptor;
+import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnCompletionListener;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -18,7 +22,7 @@ import android.widget.TextView;
 import android.app.Activity;
 
 
-public class MainActivity extends Activity implements OnSeekBarChangeListener, OnCompletionListener {
+public class MainActivity extends Activity implements OnSeekBarChangeListener, OnCompletionListener , MediaPlayer.OnErrorListener {
 
     private boolean isStopUpdatingProgress=false;
     private EditText etPath;
@@ -54,7 +58,7 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
 
         //是采用自己内部的双缓冲区，而是等待别人推送数据
 
-        holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+//        holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
 
     }
 
@@ -65,6 +69,17 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
     public void start(View v){
         if(mMediapPlayer!=null){
             if(currentstate!=PAUSING){
+                try {
+                    mMediapPlayer.prepare();
+                }catch(Exception e) {
+                    e.printStackTrace();
+                    currentstate = NORMAL;
+                    isStopUpdatingProgress=false;
+                    mMediapPlayer.reset();
+                    mMediapPlayer.release();
+                    return;
+                }
+
                 mMediapPlayer.start();
                 currentstate=PLAYING;
                 isStopUpdatingProgress=false;//每次在调用刷新线程时，都要设为false
@@ -73,6 +88,11 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
             }else if(currentstate==STOPING){
                 mMediapPlayer.reset();
                 mMediapPlayer.release();
+            }else if(currentstate == PAUSING) {
+                mMediapPlayer.start();
+                currentstate=PLAYING;
+                isStopUpdatingProgress=false;//每次在调用刷新线程时，都要设为false
+                return ;
             }
         }
         play();
@@ -93,23 +113,31 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
      */
     private void play(){
         String path=etPath.getText().toString().trim();
-        mMediapPlayer=new MediaPlayer();
+//        AssetFileDescriptor afd = getResources().openRawResourceFd(R.raw.video);
+        //Uri uri=Uri.parse("android.resource://" + getPackageName() + "/" +R.raw.video);
+
+//        mMediapPlayer=new MediaPlayer();
+        mMediapPlayer = MediaPlayer.create(this,R.raw.video);
         try {
-            //设置数据类型
-            mMediapPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+//            //设置数据类型
+//            mMediapPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
             //设置以下播放器显示的位置
             mMediapPlayer.setDisplay(holder);
 
-            mMediapPlayer.setDataSource(path);
-            mMediapPlayer.prepare();
+            //mMediapPlayer.setDataSource(path);
+//            mMediapPlayer.setDataSource(afd.getFileDescriptor(),afd.getStartOffset(),afd.getLength());
+//            afd.close();
+            //mMediapPlayer.setDataSource(this,uri);
+//            mMediapPlayer.prepare();
             mMediapPlayer.start();
 
-            mMediapPlayer .setOnCompletionListener(this);
+            mMediapPlayer.setOnCompletionListener(this);
+            mMediapPlayer.setOnErrorListener(this);
             //把当前播放器的状诚置为：播放中
             currentstate=PLAYING;
 
             //把音乐文件的总长度取出来，设置给seekbar作为最大值
-            int duration=mMediapPlayer.getDuration();//总时长
+            int duration= mMediapPlayer.getDuration();//总时长
             mSeekbar.setMax(duration);
             //把总时间显示textView上
             int m=duration/1000/60;
@@ -147,6 +175,10 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
         if(mMediapPlayer!=null){
             mMediapPlayer.reset();
             mMediapPlayer.release();
+            mMediapPlayer = null;
+            currentstate=NORMAL;
+            isStopUpdatingProgress=true;//停止刷新主线程
+
             play();
         }
     }
@@ -154,12 +186,13 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
     @Override
     public void onProgressChanged(SeekBar seekBar, int progress,
                                   boolean fromUser) {
-
+        Log.d("SeekBar","onProgressChanged progress="+progress);
     }
 
     @Override
     public void onStartTrackingTouch(SeekBar seekBar) {
         isStopUpdatingProgress=true;//当开始拖动时，那么就开始停止刷新线程
+        Log.d("SeekBar","onStartTrackingTouch");
     }
 
 
@@ -167,6 +200,7 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
     public void onStopTrackingTouch(SeekBar seekBar) {
         int progress=seekBar.getProgress();
         //播放器切换到指定的进度位置上
+        Log.d("SeekBar","onStopTrackingTouch progress="+progress);
         mMediapPlayer.seekTo(progress);
         isStopUpdatingProgress=false;
         new Thread(new UpdateProgressRunnable()).start();
@@ -177,8 +211,10 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
      */
     @Override
     public void onCompletion(MediaPlayer mp) {
-        Toast.makeText(this, "播放完了，重新再播放", 0).show();
-        mp.start();
+        Toast.makeText(this, "播放完了", 0).show();
+        isStopUpdatingProgress = true;
+        currentstate = STOPING;
+        mp.stop();
 
     }
 
@@ -194,7 +230,9 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
             //每隔1秒钟取一下当前正在播放的进度，设置给seekbar
             while(!isStopUpdatingProgress){
                 //得到当前进度
-                int currentPosition=mMediapPlayer.getCurrentPosition();
+                int currentPosition= 0;
+                if(mMediapPlayer!=null && mMediapPlayer.isPlaying())
+                    currentPosition = mMediapPlayer.getCurrentPosition();
                 mSeekbar.setProgress(currentPosition);
                 final int m=currentPosition/1000/60;
                 final int s=currentPosition/1000%60;
@@ -215,5 +253,30 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
         }
 
     }
+    @Override
+    public boolean onError(MediaPlayer mp, int what, int extra) {
+        Toast.makeText(this, "出错了，重置", 0).show();
+        Log.d("MEDIAPLAYER","onError what="+what+",extra="+extra);
+        isStopUpdatingProgress = true;
+        currentstate = STOPING;
+        mMediapPlayer = null;
+        mp.reset();
+        mp.release();
+        return true;
+    }
+    @Override
+    protected void onResume() {
+        super.onResume();
 
+    }
+    @Override
+    protected void onPause(){
+        super.onPause();
+        isStopUpdatingProgress = true;
+        currentstate = STOPING;
+        mMediapPlayer.reset();
+        mMediapPlayer.release();
+        mMediapPlayer = null;
+
+    }
 }
