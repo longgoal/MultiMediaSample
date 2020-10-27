@@ -2,6 +2,7 @@ package com.hejunlin.mediaplayersample;
 
 
 import android.content.res.AssetFileDescriptor;
+import android.graphics.SurfaceTexture;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
@@ -13,6 +14,7 @@ import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.SeekBar;
@@ -30,7 +32,7 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
     private SeekBar mSeekbar;
     private TextView tvCurrentTime;
     private TextView tvTotalTime;
-
+    private  SurfaceTexture mSurfaceTexture;
     private final int NORMAL=0;//闲置
     private final int PLAYING=1;//播放中
     private final int PAUSING=2;//暂停
@@ -54,6 +56,8 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
         mSeekbar.setOnSeekBarChangeListener(this);
 
         SurfaceView mSurfaceView=(SurfaceView) findViewById(R.id.surfaceview);
+        TextureView textureView = (TextureView) findViewById(R.id.textureview);
+        textureView.setSurfaceTextureListener(surfaceTextureListener);
         holder=mSurfaceView.getHolder();//SurfaceView帮助类对象
 
         //是采用自己内部的双缓冲区，而是等待别人推送数据
@@ -61,7 +65,30 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
 //        holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
 
     }
+TextureView.SurfaceTextureListener surfaceTextureListener = new TextureView.SurfaceTextureListener() {
+    @Override
+    public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
+        Log.d("surface","available");
+        mSurfaceTexture = surfaceTexture;
+    }
 
+    @Override
+    public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int i, int i1) {
+        Log.d("surface","change");
+    }
+
+    @Override
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
+        Log.d("surface","destroy");
+        mSurfaceTexture = null;
+        return true;
+    }
+
+    @Override
+    public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {
+        Log.d("surface","update");
+    }
+};
     /**
      * 开始
      * @param v
@@ -122,13 +149,15 @@ public class MainActivity extends Activity implements OnSeekBarChangeListener, O
 //            //设置数据类型
 //            mMediapPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
             //设置以下播放器显示的位置
-            mMediapPlayer.setDisplay(holder);
+            //mMediapPlayer.setDisplay(holder);
+            if(mSurfaceTexture != null)
+                mMediapPlayer.setSurface(new Surface(mSurfaceTexture));
 
             //mMediapPlayer.setDataSource(path);
 //            mMediapPlayer.setDataSource(afd.getFileDescriptor(),afd.getStartOffset(),afd.getLength());
 //            afd.close();
             //mMediapPlayer.setDataSource(this,uri);
-//            mMediapPlayer.prepare();
+           // mMediapPlayer.prepare();
             mMediapPlayer.start();
 
             mMediapPlayer.setOnCompletionListener(this);
