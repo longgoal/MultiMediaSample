@@ -1,5 +1,6 @@
 package com.hejunlin.mediacodcsample;
 
+import android.content.res.AssetFileDescriptor;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
@@ -36,10 +37,12 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
+        Log.d(TAG,"surfaceCreated");
     }
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        Log.d(TAG,"surfaceChanged");
         if (mWorkThread == null) {
             mWorkThread = new WorkThread(holder.getSurface());
             mWorkThread.start();
@@ -48,6 +51,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
+        Log.d(TAG,"surfaceDestroyed");
         if (mWorkThread != null) {
             mWorkThread.interrupt();
         }
@@ -65,12 +69,21 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         @Override
         public void run() {
             mMediaExtractor = new MediaExtractor();//数据解析器
+            AssetFileDescriptor afd = getResources().openRawResourceFd(R.raw.video);
             try {
-                mMediaExtractor.setDataSource(SAMPLE);
+                //mMediaExtractor.setDataSource(SAMPLE);
+                mMediaExtractor.setDataSource(afd.getFileDescriptor(),afd.getStartOffset(),afd.getDeclaredLength());
+                afd.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
 
+            for (int i = 0; i < mMediaExtractor.getTrackCount(); i++) {//遍历数据源音视频轨迹
+                MediaFormat format = mMediaExtractor.getTrackFormat(i);
+                Log.d(TAG, ">> format i " + i + ": " +  format);
+                String mime = format.getString(MediaFormat.KEY_MIME);
+                Log.d(TAG, ">> mime i " + i + ": " +  mime);
+            }
             for (int i = 0; i < mMediaExtractor.getTrackCount(); i++) {//遍历数据源音视频轨迹
                 MediaFormat format = mMediaExtractor.getTrackFormat(i);
                 Log.d(TAG, ">> format i " + i + ": " +  format);
